@@ -266,9 +266,9 @@
 
             // ganttDataArea.onmousedown = dragMouseDown;
 
-            scroller.addEventListener('mouseup', dragMouseUp);
-            scroller.addEventListener('mousemove', dragMouseMove);
-            scroller.addEventListener('mousedown', dragMouseDown);
+            scroller.addEventListener('pointerup', dragMouseUp);
+            scroller.addEventListener('pointermove', dragMouseMove);
+            scroller.addEventListener('pointerdown', dragMouseDown);
 
             nRows = scroller.scrollHeight / rowHeight;
 
