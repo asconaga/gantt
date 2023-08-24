@@ -28,8 +28,6 @@
             touch-action: none;
         }
 
-
-
         /* all divs except for the splitter */
         .spliter {
             /* background-color: wheat; */
@@ -202,6 +200,8 @@
     <script>
         var rootStyles = getComputedStyle(document.documentElement);
 
+        console.log("orientation", window.orientation);
+
         // get some values from the css
         const rowHeight = 20;
         const leftOffset = parseInt(rootStyles.getPropertyValue('--leftOffset'));
@@ -234,6 +234,10 @@
         let gantt = { mode: PRMode.Task, projectArr: [] };
         let activeProject = null;
 
+        window.addEventListener('orientationchange', function (event) {
+            console.log('orientationchange', event);
+        });
+
         function onLoad() {
             window.onkeyup = onKeyUp;
             window.onresize = onResize;
@@ -263,7 +267,7 @@
                 }
             }
 
-            activateProject(getRandomInt(0, randomDaysProjects - 1))
+            activateProject(getRandomInt(0, randomDaysProjects - 1));
 
             console.log(gantt);
 
@@ -272,6 +276,8 @@
             scroller.addEventListener('pointerup', dragMouseUp);
             scroller.addEventListener('pointermove', dragMouseMove);
             scroller.addEventListener('pointerdown', dragMouseDown);
+
+            ganttTaskHeader.addEventListener('pointerdown', taskHeaderMouseDown);
 
             nRows = scroller.scrollHeight / rowHeight;
 
@@ -414,7 +420,7 @@
             // gantt dates
             for (let i = 0; i <= newEntries; i++) {
                 var iDiv = document.createElement('div');
-                iDiv.elemAttr = { id: 0, column: i };
+                iDiv.elemAttr = { id: 0, column: datesChildren + i };
                 ganttDates.appendChild(iDiv);
             }
 
@@ -476,7 +482,6 @@
             repositionDivs();
         }
 
-
         function activateProject(index) {
             gantt.nIndex = index;
             activeProject = gantt.projectArr[gantt.nIndex];
@@ -523,16 +528,19 @@
 
             // gantt tasks
             if (relArr) {
-                let newEntries = relArr.length - ganttTaskRows.children.length;
 
-                let newTop = ganttTaskRows.children.length * blockSize;
+                let smallest = ganttTaskRows.children.length;
+
+                let newEntries = relArr.length - smallest;
+
+                let newTop = smallest * blockSize;
 
                 // create new tasks as required
                 for (let i = 0; i < newEntries; i++) {
                     var iDiv = document.createElement('div');
 
                     iDiv.style.top = `${newTop}px`;
-                    iDiv.elemAttr = { id: 3, row: i };
+                    iDiv.elemAttr = { id: 3, row: smallest + i };
                     ganttTaskRows.appendChild(iDiv);
 
                     iDiv = document.createElement('div');
@@ -540,13 +548,13 @@
                     iDiv.style.top = `${newTop}px`;
                     iDiv.className = "ganttDataRow";
 
-                    iDiv.elemAttr = { id: 2, row: i };
+                    iDiv.elemAttr = { id: 2, row: smallest + i };
                     ganttDataRows.appendChild(iDiv);
 
                     newTop += blockSize;
                 }
 
-                let smallest = ganttTaskRows.children.length;
+                smallest = ganttTaskRows.children.length;
 
                 // update the task names
                 for (let index = 0; index < smallest; index++) {
@@ -567,7 +575,6 @@
             }
 
             // console.time('Execution time');
-
 
             let svgPaths = svgGroup.children.length
             for (let index = 0; index < svgPaths; index++) {
@@ -713,12 +720,27 @@
                     offsetTop: spliter.offsetTop
                 };
             }
+        }
 
-            console.log(e.target);
+        function taskHeaderMouseDown(e) {
+            changeMode();
         }
 
         function dragMouseUp(e) {
-            console.log(e);
+            if ((scroller.style.cursor === '') && (e.target.elemAttr != undefined)) {
+                // we haven't moved I am a press
+
+                let elemID = (e.target.elemAttr === undefined) ? -1 : e.target.elemAttr.id;
+
+                switch (elemID) {
+                    case 3: // task header
+                        if (gantt.mode === PRMode.Project) {
+                            gantt.mode = PRMode.Task;
+                            activateProject(e.target.elemAttr.row);
+                        }
+                        break;
+                }
+            }
 
             md = null;
 
@@ -838,9 +860,9 @@
         }
 
         function onUnload() {
-            scroller.removeEventListener('mouseup', dragMouseUp);
-            scroller.removeEventListener('mousemove', dragMouseMove);
-            scroller.removeEventListener('mousedown', dragMouseDown);
+            scroller.removeEventListener('pointerup', dragMouseUp);
+            scroller.removeEventListener('pointermove', dragMouseMove);
+            scroller.removeEventListener('pointerdown', dragMouseDown);
         }
 
         function mouseUp() {
