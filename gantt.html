@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        :root {
+            --blockSize: 24px;
+            --doubleBlockSize: 48px;
+            --tableHeight: 100%;
+            --leftOffset: 150px;
+            --greyColor: #DADADA;
+        }
+
+        body {
+            font-family: 'Gill Sans', 'Gill Sans MT', 'Trebuchet MS', sans-serif;
+            height: 100%;
+            margin: 0;
+        }
+
+        .flex-container {
+            /* display: flex; */
+            background-color: white;
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            overflow-x: hidden;
+        }
+
+        /* all divs except for the splitter */
+        .spliter {
+            /* background-color: wheat; */
+            /* margin: 10px; */
+            overflow: hidden;
+            width: 100%;
+            text-align: center;
+            position: relative;
+            border: 1px solid var(--greyColor);
+        }
+
+        #ganttDates {
+            position: absolute;
+            display: flex;
+        }
+
+        #ganttTaskHeader {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            width: var(--leftOffset);
+            height: var(--doubleBlockSize);
+            border-right: 1px solid var(--greyColor);
+            background-color: white;
+            z-index: 9;
+            user-select: none;
+        }
+
+        #ganttTaskRows {
+            position: absolute;
+            font-size: small;
+            display: flex;
+            width: var(--leftOffset);
+            height: var(--tableHeight);
+            background-color: white;
+            z-index: 9;
+            user-select: none;
+
+            border-top: 1px solid var(--greyColor);
+            border-right: 1px solid var(--greyColor);
+        }
+
+        .ganttTooltip {
+            position: absolute;
+            font-size: small;
+            background-color: black;
+            color: white;
+            z-index: 20;
+            user-select: none;
+            margin: 3px;
+            padding: 2px 6px 2px 6px;
+            border-radius: 16px;
+            box-shadow: 10px 10px 20px grey;
+        }
+
+        #ganttTaskRows>div {
+            position: absolute;
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+
+            height: var(--blockSize);
+            border-bottom: 1px solid var(--greyColor);
+        }
+
+        #ganttDates>div:hover,
+        #ganttTaskRows>div:hover {
+            font-weight: bold;
+            background-color: beige;
+        }
+
+        .diffMonth {
+            background-color: rgb(225, 225, 225) !important;
+        }
+
+        #ganttDates>div {
+            /* pointer-events: none; */
+            font-size: small;
+            position: relative;
+            display: flex;
+            align-items: center;
+            /* background-color: wheat; */
+            justify-content: center;
+            width: var(--blockSize);
+            height: var(--blockSize);
+            margin: 0;
+            user-select: none;
+            padding: 0;
+            /* border-spacing: 0cap; */
+            border-width: 1px;
+
+            border-top: 0;
+            border-right: 0;
+            border-bottom: 0;
+            border-style: solid;
+            border-color: var(--greyColor);
+            background-color: rgb(243, 243, 243);
+        }
+
+        #ganttDataArea {
+            position: absolute;
+            display: flex;
+            /* background-color: whitesmoke; */
+            width: 100%;
+            height: var(--tableHeight);
+            border-top: 1px solid var(--greyColor);
+            z-index: 0;
+        }
+
+        .ganttDataRow {
+            z-index: 1;
+            position: absolute;
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+
+            height: var(--blockSize);
+            border-bottom: 1px solid var(--greyColor);
+        }
+
+        #ganttDataItems {
+            position: absolute;
+        }
+
+        .ganttDataRowItem {
+            z-index: 2;
+            position: absolute;
+            height: 17px;
+            margin-top: 3px;
+            border-radius: 16px;
+            border: 1px solid grey;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .ganttHeader {
+            display: flex;
+            user-select: none;
+            /* background-color: white; */
+            background: radial-gradient(circle, white 0%, grey 100%);
+            border-bottom: 1px solid var(--greyColor);
+            /* adjust width for border */
+            width: calc(100% - 2px);
+            position: absolute;
+            align-items: center;
+            justify-content: center;
+            height: var(--blockSize);
+            font-weight: bold;
+        }
+
+        .svgLayer {
+            z-index: 30;
+            position: absolute;
+            left: var(--leftOffset);
+            user-select: none;
+            height: 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body onload="onLoad()" onunload="onUnload()">
+    <script>
+        var rootStyles = getComputedStyle(document.documentElement);
+
+        // get some values from the css
+        const rowHeight = 20;
+        const leftOffset = parseInt(rootStyles.getPropertyValue('--leftOffset'));
+        let oneDay = 86400000;
+        const blockSize = parseInt(rootStyles.getPropertyValue('--blockSize'));
+
+        let nRows = 0;
+        let md = null;
+        let xPos = 0;
+        let delta = { x: 0, y: 0 };
+        let tooltip = null;
+
+        let sectionArr = [
+            { "name": "Concept", color: "#FF6699" },
+            { "name": "Assessment", color: "#548235" },
+            { "name": "Demonstration", color: "#2F75B5" },
+            { "name": "Manufacture", color: "#FFFF00" },
+            { "name": "Inservice", color: "#FF9966" },
+        ];
+
+        let todayDate = new Date();
+
+        const PRMode = Object.freeze({
+            Task: 0,
+            Project: 1,
+            End: 2
+        });
+
+        // 0: task, 1: project
+        let gantt = { mode: PRMode.Task, projectArr: [] };
+        let activeProject = null;
+
+        function onLoad() {
+            window.onkeyup = onKeyUp;
+            window.onresize = onResize;
+
+            let randomDaysProjects = getRandomInt(25, 35);
+
+            gantt.startDate = new Date();
+            gantt.endDate = new Date();
+
+            for (let index = 0; index < randomDaysProjects; index++) {
+                let projectName = generateRandomWord(getRandomInt(6, 8));
+
+                let newProject = createProject(projectName);
+
+                gantt.projectArr.push(newProject);
+
+                // calc date extent of all projects
+                if (index === 0) {
+                    gantt.startDate.setTime(newProject.startDate.getTime());
+                    gantt.endDate.setTime(newProject.endDate.getTime());
+                }
+                else {
+                    if (newProject.startDate < gantt.startDate)
+                        gantt.startDate.setTime(newProject.startDate.getTime());
+                    if (newProject.endDate > gantt.endDate)
+                        gantt.endDate.setTime(newProject.endDate.getTime());
+                }
+            }
+
+            activateProject(getRandomInt(0, randomDaysProjects - 1))
+
+            console.log(gantt);
+
+            // ganttDataArea.onmousedown = dragMouseDown;
+
+            scroller.addEventListener('mouseup', dragMouseUp);
+            scroller.addEventListener('mousemove', dragMouseMove);
+            scroller.addEventListener('mousedown', dragMouseDown);
+
+            nRows = scroller.scrollHeight / rowHeight;
+
+            // let ganttDates = document.createElement('div');
+            // ganttDates.id = "ganttDates";
+            ganttDates.style.top = "48px";
+
+            ganttTaskHeader.style.top = "25px";
+
+            ganttDataArea.style.top = "72px";
+
+            ganttTaskRows.style.top = "72px";
+
+            // spliter.appendChild(ganttDates);
+
+            repositionDivs();
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function createProject(name) {
+            var startDate = new Date('2023-08-25');
+            var endDate = new Date('2023-08-31');
+
+            let thisProject = {
+                name: name
+            };
+
+            // pick a random start time from above range
+            var startTimestamp = startDate.getTime();
+            var endTimestamp = endDate.getTime();
+
+            var randomTimestamp = startTimestamp + Math.random() * (endTimestamp - startTimestamp);
+
+            let randomStart = new Date(randomTimestamp);
+
+            randomStart.setHours(0);
+            randomStart.setMinutes(0);
+            randomStart.setSeconds(0);
+
+            let numRanges = sectionArr.length;
+
+            thisProject.taskArr = [];
+
+            let bCont = true;
+            let consecutiveCount = -1; // account for the first item being new
+
+            while (bCont) {
+                var randomDays = getRandomInt(1, 2);
+
+                let sectChange = getRandomInt(1, 6);
+
+                let len = thisProject.taskArr.length;
+
+                let lastSect = (len) ? thisProject.taskArr[len - 1].section : 0;
+
+                let skipFactor = (len) ? getRandomInt(0, 2) : 0;
+
+                let lastDate = (len) ? thisProject.taskArr[len - 1].endDate : randomStart;
+
+                // switch if time to change if we have had sufficent consecutiveCount but a minimum
+                if (((sectChange > 4) || (consecutiveCount >= 5)) && (consecutiveCount >= 2)) {
+                    lastSect++;
+                    consecutiveCount = 0;
+                }
+                else {
+                    consecutiveCount++;
+                }
+
+                if (lastSect < numRanges) {
+                    let startDate = new Date(lastDate);
+                    startDate.setDate(startDate.getDate() + skipFactor + 1);
+
+                    let endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + randomDays);
+
+                    let taskName = generateRandomWord(getRandomInt(4, 8));
+
+                    let newTask = { name: taskName, startDate: startDate, endDate: endDate, section: lastSect };
+
+                    thisProject.taskArr.push(newTask);
+                }
+                else {
+                    bCont = false;
+                }
+            }
+
+            thisProject.startDate = new Date();
+            thisProject.endDate = new Date();
+
+            // set start and end date as initially sequenntially chronlogical
+            thisProject.startDate.setTime(thisProject.taskArr[0].startDate.getTime());
+            thisProject.endDate.setTime(thisProject.taskArr[thisProject.taskArr.length - 1].endDate.getTime());
+
+            return thisProject;
+        }
+
+        function generateRandomWord(length) {
+            const vowels = 'aeiou';
+            const consonants = 'bcdfghjklmnpqrstvwxyz';
+
+            let word = '';
+            let newLetter = '';
+            for (let i = 0; i < length; i++) {
+                if (i % 2 === 0) {
+                    newLetter = consonants[Math.floor(Math.random() * consonants.length)];
+                } else {
+                    newLetter = vowels[Math.floor(Math.random() * vowels.length)];
+                }
+
+                word += (i === 0) ? newLetter.toUpperCase() : newLetter;
+            }
+
+            return word;
+        }
+
+        function repositionDivs() {
+            let xIndex = (xPos + delta.x) / blockSize;
+
+            let iIndex = Math.floor(xIndex);
+
+            let pIndex = xIndex - iIndex;
+
+            // offset left to make sure we don't leave a gap
+            let newLeft = (pIndex * blockSize) - blockSize + leftOffset;
+
+            ganttDates.style.left = `${newLeft}px`;
+
+            let firstDay = todayDate.getDate();
+
+            let datesChildren = ganttDates.children.length;
+
+            let dataWidth = scroller.offsetWidth - ganttTaskHeader.offsetWidth;
+            let dataCols = Math.floor(dataWidth / (blockSize + 1)) + 1;
+
+            let newEntries = (dataCols - datesChildren);
+
+            // gantt dates
+            for (let i = 0; i <= newEntries; i++) {
+                var iDiv = document.createElement('div');
+                iDiv.elemAttr = { id: 0, column: i };
+                ganttDates.appendChild(iDiv);
+            }
+
+            datesChildren = ganttDates.children.length; // get updated value
+
+            // reposition gantt dates
+            var now = gantt.startDate;
+            // now.setDate(now.getDate() - 0);
+
+            // update the task names
+            for (let index = 0; index < datesChildren; index++) {
+                if (index <= dataCols) {
+                    var duedate = new Date(now);
+                    duedate.setDate(now.getDate() + index - iIndex - 1);
+
+                    if (duedate.getMonth() % 2)
+                        ganttDates.children[index].className = 'diffMonth';
+                    else
+                        ganttDates.children[index].classList.remove("diffMonth");
+
+                    ganttDates.children[index].innerText = duedate.getDate();
+                }
+                else {
+                    // remove rows not required
+                    ganttDates.children[dataCols].remove();
+                }
+            }
+
+            // reposition gantt items assuming one on a row
+            let baseDate = new Date(now);
+
+            let duration = 0;
+            switch (gantt.mode) {
+                case PRMode.Task:
+                    baseDate.setDate(now.getDate() - iIndex - 0);
+
+                    duration = ((activeProject.startDate - baseDate) / oneDay) + pIndex;
+
+                    newLeft = ((blockSize + 1) * duration) + leftOffset;
+
+                    ganttDataItems.style.left = `${newLeft}px`;
+
+                    svgLayer.style.left = `${newLeft}px`; // move the svg layer too
+                    break;
+                case PRMode.Project:
+                    baseDate.setDate(now.getDate() - iIndex - 0);
+
+                    duration = ((gantt.startDate - baseDate) / oneDay) + pIndex;
+
+                    newLeft = ((blockSize + 1) * duration) + leftOffset;
+
+                    ganttDataItems.style.left = `${newLeft}px`;
+                    break;
+            }
+        }
+
+        function onResize(e) {
+            // console.log("Resize", scroller.offsetWidth, scroller.offsetHeight);
+            repositionDivs();
+        }
+
+
+        function activateProject(index) {
+            gantt.nIndex = index;
+            activeProject = gantt.projectArr[gantt.nIndex];
+
+            displayMode();
+        }
+
+        function changeActiveProject(nDir) {
+            if (gantt.mode === PRMode.Task) {
+                let newIndex = gantt.nIndex + nDir;
+
+                if (newIndex < 0) newIndex = gantt.projectArr.length - 1;
+                else if (newIndex > (gantt.projectArr.length - 1)) newIndex = 0;
+
+                activateProject(newIndex);
+            }
+        }
+
+        function changeMode(e) {
+            gantt.mode += 1;
+
+            if (gantt.mode >= PRMode.End) {
+                gantt.mode = PRMode.Task;
+            }
+
+            displayMode();
+        }
+
+        function displayMode() {
+            let relArr = null;
+
+            switch (gantt.mode) {
+                case PRMode.Task:
+                    ganttTaskHeader.innerText = "Tasks";
+                    ganttHeader.innerText = `Project: ${activeProject.name} (${gantt.nIndex + 1}/${gantt.projectArr.length}) - Tasks: ${activeProject.taskArr.length}`;
+                    relArr = activeProject.taskArr;
+                    break;
+                case PRMode.Project:
+                    ganttTaskHeader.innerText = "Projects";
+                    ganttHeader.innerText = `Projects: ${gantt.projectArr.length}`;
+                    relArr = gantt.projectArr;
+                    break;
+            }
+
+            // gantt tasks
+            if (relArr) {
+                let newEntries = relArr.length - ganttTaskRows.children.length;
+
+                let newTop = ganttTaskRows.children.length * blockSize;
+
+                // create new tasks as required
+                for (let i = 0; i < newEntries; i++) {
+                    var iDiv = document.createElement('div');
+
+                    iDiv.style.top = `${newTop}px`;
+                    iDiv.elemAttr = { id: 3, row: i };
+                    ganttTaskRows.appendChild(iDiv);
+
+                    iDiv = document.createElement('div');
+
+                    iDiv.style.top = `${newTop}px`;
+                    iDiv.className = "ganttDataRow";
+
+                    iDiv.elemAttr = { id: 2, row: i };
+                    ganttDataRows.appendChild(iDiv);
+
+                    newTop += blockSize;
+                }
+
+                let smallest = ganttTaskRows.children.length;
+
+                // update the task names
+                for (let index = 0; index < smallest; index++) {
+                    if (index < relArr.length)
+                        ganttTaskRows.children[index].innerText = (index + 1) + "-" + relArr[index].name;
+                    else {
+                        // remove rows not required
+                        ganttTaskRows.children[relArr.length].remove();
+                        ganttDataRows.children[relArr.length].remove();
+                    }
+                }
+            }
+
+            // gantt data items
+            let currentLength = ganttDataItems.children.length;
+            for (let i = 0; i < currentLength; i++) {
+                ganttDataItems.children[0].remove();
+            }
+
+            // console.time('Execution time');
+
+
+            let svgPaths = svgGroup.children.length
+            for (let index = 0; index < svgPaths; index++) {
+                svgGroup.children[0].remove();
+            }
+
+            let newTop = 0;
+            let lastPos = { x: 0, y: 0 };
+
+            switch (gantt.mode) {
+                case PRMode.Task:
+                    {
+                        for (let index = 0; index < activeProject.taskArr.length; index++) {
+                            const element = activeProject.taskArr[index];
+
+                            let duration = ((element.endDate - element.startDate) / oneDay);
+                            let totDur = ((element.startDate - activeProject.startDate) / oneDay);
+
+                            var iDiv = document.createElement('div');
+
+                            let newLeft = totDur * (blockSize + 1);
+                            let newWidth = ((blockSize + 1) * (duration + 1));
+                            iDiv.style.top = `${newTop}px`;
+
+                            iDiv.style.left = `${newLeft}px`;
+                            iDiv.className = "ganttDataRowItem";
+                            iDiv.style.backgroundColor = sectionArr[activeProject.taskArr[index].section].color;
+                            iDiv.style.width = newWidth + "px";
+                            iDiv.elemAttr = { id: 1, row: index };
+                            ganttDataItems.appendChild(iDiv);
+
+                            if (index > 0) {
+                                const newPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+
+                                let x1 = lastPos.x - 1;
+                                let y1 = lastPos.y;
+                                let x2 = iDiv.offsetLeft + 1;
+                                let y2 = iDiv.offsetTop + iDiv.offsetHeight / 2;
+
+                                let xDiff = x2 - x1;
+
+                                let newScene = ""
+                                if (xDiff === 0) {
+                                    let xS = 15;
+                                    newScene = `M${x1} ${y1} ${x1 + xS} ${y1} ${x1 + xS} ${y1 + blockSize / 2} ${x1 - xS} ${y1 + blockSize / 2} ${x1 - xS} ${y1 + blockSize} ${x2 - 4} ${y2}`;
+                                }
+                                else {
+                                    let half = xDiff / 2;
+                                    newScene = `M${x1} ${y1} ${x1 + half} ${y1} ${x1 + half} ${y2} ${x2 - 4} ${y2}`;
+                                }
+
+                                newPath.setAttribute("d", newScene);
+
+                                svgGroup.appendChild(newPath);
+                            }
+
+                            lastPos.x = iDiv.offsetLeft + iDiv.offsetWidth;
+                            lastPos.y = iDiv.offsetTop + iDiv.offsetHeight / 2;
+
+                            newTop += blockSize;
+                        }
+
+                        // YAKUBU - fixed width svg until we create a viewport
+                        svgLayer.style.width = `${lastPos.x}px`;
+                        svgLayer.style.heigth = `${lastPos.y}px`;
+                    }
+                    break;
+                case PRMode.Project:
+                    {
+                        for (let index = 0; index < gantt.projectArr.length; index++) {
+                            const element = gantt.projectArr[index];
+
+                            let lastSection = -1;
+                            let sectStart = null;
+                            let sectEnd = null;
+
+                            for (let i = 0; i <= element.taskArr.length; i++) {
+                                const task = (i < element.taskArr.length) ? element.taskArr[i] : null;
+
+                                if ((task === null) || (task.section != lastSection)) {
+                                    // output div
+                                    if (lastSection != -1) {
+                                        let duration = ((sectEnd - sectStart) / oneDay);
+                                        let totDur = ((sectStart - gantt.startDate) / oneDay);
+
+                                        var iDiv = document.createElement('div');
+
+                                        iDiv.style.top = `${newTop}px`;
+                                        iDiv.style.left = `${totDur * (blockSize + 1)}px`;
+                                        iDiv.className = "ganttDataRowItem";
+                                        iDiv.style.backgroundColor = sectionArr[lastSection].color;
+                                        iDiv.style.width = ((blockSize + 1) * (duration + 1)) + "px";
+                                        iDiv.elemAttr = { id: 4, row: index, section: lastSection };
+                                        ganttDataItems.appendChild(iDiv);
+                                    }
+
+                                    if (task != null) {
+                                        // start new section
+                                        sectStart = task.startDate;
+                                        sectEnd = task.endDate;
+                                        lastSection = task.section;
+                                    }
+                                }
+                                else {
+                                    if (task.endDate > sectEnd)
+                                        sectEnd = task.endDate;
+                                }
+                            }
+
+                            newTop += blockSize;
+                        }
+                    }
+                    break;
+            }
+
+            // console.timeEnd('Execution time');
+            repositionDivs();
+        }
+
+        function onKeyUp(e) {
+            if (e.altKey) {
+                switch (e.keyCode) {
+                    case 77:
+                        changeMode();
+                        break;
+                    case 188:
+                        changeActiveProject(-1);
+                        break;
+                    case 190:
+                        changeActiveProject(1);
+                        break;
+                }
+            }
+        }
+
+        function dragMouseDown(e) {
+            if (e.target.elemAttr != undefined) {
+                e.preventDefault();
+
+                md = {
+                    e,
+                    offsetLeft: spliter.offsetLeft,
+                    offsetTop: spliter.offsetTop
+                };
+            }
+
+            console.log(e.target);
+        }
+
+        function dragMouseUp(e) {
+            console.log(e);
+
+            md = null;
+
+            xPos += delta.x;
+
+            delta = { x: 0, y: 0 };
+            scroller.style.cursor = '';
+        }
+
+        function getPos(el) {
+            // yay readability
+            for (var lx = 0, ly = 0;
+                el != null;
+                lx += el.offsetLeft, ly += el.offsetTop, el = el.offsetParent);
+            return { x: lx, y: ly };
+        }
+
+        function dragMouseMove(e) {
+            let elemID = (e.target.elemAttr === undefined) ? -1 : e.target.elemAttr.id;
+
+            switch (elemID) {
+                case 0: // date
+                case 1: // task
+                case 4: // project
+                    if (tooltip === null) {
+                        tooltip = document.createElement('div');
+                        tooltip.className = "ganttTooltip";
+
+                        spliter.appendChild(tooltip);
+                    }
+
+                    let pos = getPos(e.target);
+
+                    let yPos = pos.y + e.target.offsetHeight;
+                    let xPos = e.clientX; //.x;
+
+                    tooltip.style.top = `${yPos}px`;
+                    tooltip.style.left = `${xPos}px`;
+                    tooltip.style.visibility = "visible";
+                    break;
+            }
+
+            let options = {
+                year: "2-digit",
+                month: "numeric",
+                day: "numeric",
+                weekday: "short",
+            };
+
+            switch (elemID) {
+                case 0: // date
+                    var now = gantt.startDate;
+                    let duedate = new Date(now);
+
+                    let xIndex = (xPos + delta.x) / blockSize;
+
+                    if ((xIndex % 1) === 0) xIndex += 1;
+                    duedate.setDate(now.getDate() + e.target.elemAttr.column - xIndex);
+
+                    options.month = 'short';
+                    tooltip.innerText = duedate.toLocaleString(undefined, options);
+                    break;
+                case 1: //  task
+                    let thisTask = activeProject.taskArr[e.target.elemAttr.row];
+
+                    let sDate = (thisTask.startDate.toLocaleString(undefined, options));
+                    let eDate = (thisTask.endDate.toLocaleString(undefined, options));
+
+                    tooltip.innerText = thisTask.name + " - " + sDate + " - " + eDate;
+                    break;
+                case 4: // project
+                    let thisProject = gantt.projectArr[e.target.elemAttr.row];
+
+                    let sectCount = 0;
+
+                    let spDate, epDate;
+                    for (let i = 0; i < thisProject.taskArr.length; i++) {
+                        const task = thisProject.taskArr[i];
+                        if (task.section === e.target.elemAttr.section) {
+                            if (sectCount++ === 0)
+                                spDate = (task.startDate.toLocaleString(undefined, options));
+
+                            epDate = (task.endDate.toLocaleString(undefined, options));
+                        }
+                    }
+
+                    let sectName = sectionArr[e.target.elemAttr.section].name;
+
+                    tooltip.innerText = thisProject.name + " [" + sectName + "] " + spDate + " - " + epDate;
+                    break;
+                default:
+                    if (tooltip != null)
+                        tooltip.style.visibility = "hidden";
+                    break;
+            }
+
+            // console.table(e.target.offsetLeft, e.target.clientLeft, e.target.offsetHeight, e.target.offsetWidth);
+
+            // console.table(e.target.offsetLeft, e.target.offsetTop, e.target.offsetHeight, e.target.offsetWidth);
+
+            // console.table(activeProject.taskArr[e.target.elemAttr.row].name);
+
+            if (md != null) {
+                if (scroller.style.cursor == '') {
+                    if (e.target.elemAttr.id === 0)
+                        scroller.style.cursor = 'ew-resize';
+                    else
+                        scroller.style.cursor = 'move';
+                }
+                delta = {
+                    x: e.clientX - md.e.clientX,
+                    y: e.clientY - md.e.clientY
+                };
+
+                repositionDivs();
+            }
+        }
+
+        function onUnload() {
+            scroller.removeEventListener('mouseup', dragMouseUp);
+            scroller.removeEventListener('mousemove', dragMouseMove);
+            scroller.removeEventListener('mousedown', dragMouseDown);
+        }
+
+        function mouseUp() {
+            spliter.style.backgroundColor = "blue";
+        }
+
+    </script>
+    <div id="scroller" class="flex-container">
+        <div class="spliter" id="spliter">
+            <div id="ganttHeader" class="ganttHeader">Header</div>
+            <div id="ganttTaskHeader">Tasks</div>
+            <div id="ganttTaskRows"></div>
+            <div id="ganttDates"></div>
+            <div id="ganttDataArea">
+                <div id="ganttDataItems"></div>
+                <div id="ganttDataRows"></div>
+                <svg id="svgLayer" class="svgLayer" pointer-events="none">
+                    <defs>
+                        <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="9" markerHeight="9"
+                            orient="auto-start-reverse">
+                            <path d="M 0 0 10 5 0 10 z" stroke-linejoin="round" fill="black">
+                            </path>
+                        </marker>
+                    </defs>
+                    <g id="svgGroup" stroke="grey" cursor="pointer" stroke-width="1" pointer-events="stroke"
+                        stroke-linejoin="round" fill="transparent" marker-end="url(#arrow)">
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
