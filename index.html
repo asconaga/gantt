@@ -17,7 +17,7 @@
             margin: 0;
         }
 
-        .flex-container {
+        .scroller {
             /* display: flex; */
             background-color: white;
             width: 100%;
@@ -25,7 +25,10 @@
             display: flex;
             justify-content: center;
             overflow-x: hidden;
+            touch-action: none;
         }
+
+
 
         /* all divs except for the splitter */
         .spliter {
@@ -845,7 +848,7 @@
         }
 
     </script>
-    <div id="scroller" class="flex-container">
+    <div id="scroller" class="scroller">
         <div class="spliter" id="spliter">
             <div id="ganttHeader" class="ganttHeader">Header</div>
             <div id="ganttTaskHeader">Tasks</div>
