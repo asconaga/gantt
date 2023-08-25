@@ -161,10 +161,12 @@
         .ganttDataRowItem {
             z-index: 2;
             position: absolute;
-            height: 17px;
-            margin-top: 3px;
+            height: 21px;
+            margin-top: 2px;
             border-radius: 16px;
-            border: 1px solid grey;
+            outline: 1px solid grey;
+            /* displayed inside div */
+            outline-offset: -1px;
 
             display: flex;
             align-items: center;
@@ -611,9 +613,9 @@
                             if (index > 0) {
                                 const newPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
 
-                                let x1 = lastPos.x - 1;
+                                let x1 = lastPos.x;
                                 let y1 = lastPos.y;
-                                let x2 = iDiv.offsetLeft + 1;
+                                let x2 = iDiv.offsetLeft;
                                 let y2 = iDiv.offsetTop + iDiv.offsetHeight / 2;
 
                                 let xDiff = x2 - x1;
