@@ -434,6 +434,14 @@
             var now = gantt.startDate;
             // now.setDate(now.getDate() - 0);
 
+            const firstDate = new Date(now);
+            firstDate.setDate(now.getDate() - iIndex - 1);
+
+            const lastDate = new Date(now);
+            lastDate.setDate(now.getDate() + datesChildren - iIndex - 2);
+
+            console.log(firstDate.getMonth(), lastDate.getMonth());
+
             // update the task names
             for (let index = 0; index < datesChildren; index++) {
                 if (index <= dataCols) {
@@ -755,7 +763,6 @@
         }
 
         function getPos(el) {
-            // yay readability
             for (var lx = 0, ly = 0;
                 el != null;
                 lx += el.offsetLeft, ly += el.offsetTop, el = el.offsetParent);
@@ -768,6 +775,7 @@
             switch (elemID) {
                 case 0: // date
                 case 1: // task
+                case 2: // data row                
                 case 4: // project
                     if (tooltip === null) {
                         tooltip = document.createElement('div');
@@ -787,6 +795,8 @@
                     break;
             }
 
+            let xIndex = (xPos + delta.x) / blockSize;
+
             let options = {
                 year: "2-digit",
                 month: "numeric",
@@ -796,16 +806,15 @@
 
             switch (elemID) {
                 case 0: // date
-                    var now = gantt.startDate;
-                    let duedate = new Date(now);
+                    let dueDate = new Date(gantt.startDate);
 
-                    let xIndex = (xPos + delta.x) / blockSize;
+                    if (Number.isInteger(xIndex)) xIndex += 1;
+                    let diff = (e.target.elemAttr.column - xIndex);
 
-                    if ((xIndex % 1) === 0) xIndex += 1;
-                    duedate.setDate(now.getDate() + e.target.elemAttr.column - xIndex);
+                    dueDate.setDate(dueDate.getDate() + Math.floor(diff));
 
                     options.month = 'short';
-                    tooltip.innerText = duedate.toLocaleString(undefined, options);
+                    tooltip.innerText = dueDate.toLocaleString(undefined, options);
                     break;
                 case 1: //  task
                     let thisTask = activeProject.taskArr[e.target.elemAttr.row];
@@ -814,6 +823,18 @@
                     let eDate = (thisTask.endDate.toLocaleString(undefined, options));
 
                     tooltip.innerText = thisTask.name + " - " + sDate + " - " + eDate;
+                    break;
+                case 2: // data row
+                    // YAKUBU make this a generic screenToDate
+                    let nColumn = (e.clientX - leftOffset) / (blockSize + 1);
+
+                    let tipDate = new Date(gantt.startDate);
+
+                    tipDate.setDate(tipDate.getDate() + Math.floor(nColumn - xIndex));
+
+                    options.month = 'short';
+
+                    tooltip.innerText = tipDate.toLocaleString(undefined, options);
                     break;
                 case 4: // project
                     let thisProject = gantt.projectArr[e.target.elemAttr.row];
@@ -840,12 +861,6 @@
                         tooltip.style.visibility = "hidden";
                     break;
             }
-
-            // console.table(e.target.offsetLeft, e.target.clientLeft, e.target.offsetHeight, e.target.offsetWidth);
-
-            // console.table(e.target.offsetLeft, e.target.offsetTop, e.target.offsetHeight, e.target.offsetWidth);
-
-            // console.table(activeProject.taskArr[e.target.elemAttr.row].name);
 
             if (md != null) {
                 if (scroller.style.cursor == '') {
