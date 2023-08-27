@@ -55,6 +55,19 @@
             border-top: 1px solid var(--greyColor);
         }
 
+        .ganttDateHeaderItem {
+            position: absolute;
+            font-size: small;
+            display: flex;
+            height: var(--blockSize);
+            justify-content: center;
+            align-items: center;
+            color: white;
+            background-color: grey;
+            border-left: 1px solid var(--greyColor);
+            user-select: none;
+        }
+
         #ganttTaskHeader {
             position: absolute;
             display: flex;
@@ -113,10 +126,6 @@
         #ganttTaskRows>div:hover {
             font-weight: bold;
             background-color: beige !important;
-        }
-
-        .diffMonth {
-            background-color: rgb(225, 225, 225) !important;
         }
 
         #ganttDates>div {
@@ -236,8 +245,6 @@
             { "name": "Manufacture", color: "#FFFF00" },
             { "name": "Inservice", color: "#FF9966" },
         ];
-
-        let todayDate = new Date();
 
         const PRMode = Object.freeze({
             Task: 0,
@@ -406,6 +413,14 @@
             return word;
         }
 
+        function differenceInMonths(date1, date2) {
+            const sMonth = date2.getMonth();
+            const monthDiff = date1.getMonth() - sMonth;
+            const yearDiff = date1.getYear() - date2.getYear();
+
+            return sMonth + monthDiff + yearDiff * 12;
+        }
+
         function repositionDivs() {
             let xIndex = (xPos + delta.x) / blockSize;
 
@@ -419,8 +434,6 @@
             ganttDates.style.left = `${newLeft}px`;
 
             ganttDateHeader.style.left = `${newLeft}px`;
-
-            let firstDay = todayDate.getDate();
 
             let datesChildren = ganttDates.children.length;
 
@@ -448,24 +461,43 @@
             const lastDate = new Date(now);
             lastDate.setDate(now.getDate() + datesChildren - iIndex - 2);
 
-            // console.log(firstDate.getMonth(), lastDate.getMonth());
+            // gantt date header
+            let currentLength = ganttDateHeader.children.length;
+            for (let i = 0; i < currentLength; i++) {
+                ganttDateHeader.children[0].remove();
+            }
 
-            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+            let startYear = firstDate.getFullYear();
+            let lastMon = differenceInMonths(lastDate, firstDate);
 
-            let dur2 = ((firstDayOfMonth - now) / oneDay);
+            for (let index = firstDate.getMonth(); index <= lastMon; index++) {
+                let mm = index % 12;
+                let yy = Math.floor(index / 12);
 
-            // console.log(firstDayOfMonth, dur2, xIndex);
+                const firstDayOfMonth = new Date(startYear + yy, mm, 1, 0, 0, 0);
+
+                const lastDayOfMonth = new Date(startYear + yy, mm + 1, 0, 0, 0, 0);
+
+                let itemLeft = (((firstDayOfMonth - now) / oneDay) + iIndex + 1) * (blockSize + 1);
+
+                let itemRight = (((lastDayOfMonth - now) / oneDay) + iIndex + 2) * (blockSize + 1);
+
+                var iDiv = document.createElement('div');
+
+                iDiv.style.left = `${itemLeft}px`;
+                iDiv.className = "ganttDateHeaderItem";
+                iDiv.style.width = (itemRight - itemLeft) + "px";
+                const month = firstDayOfMonth.toLocaleString('default', { month: 'long', year: "numeric" });
+                iDiv.innerText = month;
+                // iDiv.elemAttr = { id: 1, row: index };
+                ganttDateHeader.appendChild(iDiv);
+            }
 
             // update the task names
             for (let index = 0; index < datesChildren; index++) {
                 if (index <= dataCols) {
                     var dueDate = new Date(now);
                     dueDate.setDate(now.getDate() + index - iIndex - 1);
-
-                    if (dueDate.getMonth() % 2)
-                        ganttDates.children[index].className = 'diffMonth';
-                    else
-                        ganttDates.children[index].classList.remove("diffMonth");
 
                     ganttDates.children[index].innerText = dueDate.getDate();
                 }
