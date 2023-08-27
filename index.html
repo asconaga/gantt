@@ -15,6 +15,7 @@
             font-family: 'Gill Sans', 'Gill Sans MT', 'Trebuchet MS', sans-serif;
             height: 100%;
             margin: 0;
+            padding: 0;
         }
 
         .scroller {
@@ -42,6 +43,16 @@
         #ganttDates {
             position: absolute;
             display: flex;
+            border-top: 1px solid var(--greyColor);
+        }
+
+        #ganttDateHeader {
+            position: absolute;
+            display: flex;
+            background-color: whitesmoke;
+            width: 100%;
+            height: var(--blockSize);
+            border-top: 1px solid var(--greyColor);
         }
 
         #ganttTaskHeader {
@@ -101,7 +112,7 @@
         #ganttDates>div:hover,
         #ganttTaskRows>div:hover {
             font-weight: bold;
-            background-color: beige;
+            background-color: beige !important;
         }
 
         .diffMonth {
@@ -181,7 +192,7 @@
             background: radial-gradient(circle, white 0%, grey 100%);
             border-bottom: 1px solid var(--greyColor);
             /* adjust width for border */
-            width: calc(100% - 2px);
+            width: 100%;
             position: absolute;
             align-items: center;
             justify-content: center;
@@ -285,17 +296,12 @@
 
             nRows = scroller.scrollHeight / rowHeight;
 
-            // let ganttDates = document.createElement('div');
-            // ganttDates.id = "ganttDates";
+            ganttDateHeader.style.top = "24px";
+            ganttTaskHeader.style.top = "24px";
             ganttDates.style.top = "48px";
 
-            ganttTaskHeader.style.top = "25px";
-
             ganttDataArea.style.top = "72px";
-
             ganttTaskRows.style.top = "72px";
-
-            // spliter.appendChild(ganttDates);
 
             repositionDivs();
         }
@@ -412,6 +418,8 @@
 
             ganttDates.style.left = `${newLeft}px`;
 
+            ganttDateHeader.style.left = `${newLeft}px`;
+
             let firstDay = todayDate.getDate();
 
             let datesChildren = ganttDates.children.length;
@@ -440,20 +448,26 @@
             const lastDate = new Date(now);
             lastDate.setDate(now.getDate() + datesChildren - iIndex - 2);
 
-            console.log(firstDate.getMonth(), lastDate.getMonth());
+            // console.log(firstDate.getMonth(), lastDate.getMonth());
+
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+
+            let dur2 = ((firstDayOfMonth - now) / oneDay);
+
+            // console.log(firstDayOfMonth, dur2, xIndex);
 
             // update the task names
             for (let index = 0; index < datesChildren; index++) {
                 if (index <= dataCols) {
-                    var duedate = new Date(now);
-                    duedate.setDate(now.getDate() + index - iIndex - 1);
+                    var dueDate = new Date(now);
+                    dueDate.setDate(now.getDate() + index - iIndex - 1);
 
-                    if (duedate.getMonth() % 2)
+                    if (dueDate.getMonth() % 2)
                         ganttDates.children[index].className = 'diffMonth';
                     else
                         ganttDates.children[index].classList.remove("diffMonth");
 
-                    ganttDates.children[index].innerText = duedate.getDate();
+                    ganttDates.children[index].innerText = dueDate.getDate();
                 }
                 else {
                     // remove rows not required
@@ -894,7 +908,10 @@
             <div id="ganttHeader" class="ganttHeader">Header</div>
             <div id="ganttTaskHeader">Tasks</div>
             <div id="ganttTaskRows"></div>
-            <div id="ganttDates"></div>
+            <div id="ganttDateSection">
+                <div id="ganttDateHeader"></div>
+                <div id="ganttDates"></div>
+            </div>
             <div id="ganttDataArea">
                 <div id="ganttDataItems"></div>
                 <div id="ganttDataRows"></div>
