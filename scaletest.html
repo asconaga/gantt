@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<style>
+    body {
+        font-family: 'Gill Sans', 'Gill Sans MT', 'Trebuchet MS', sans-serif;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    #divFrame {
+        position: relative;
+        width: 1200px;
+        height: 800px;
+        background-color: whitesmoke;
+        text-align: center;
+        /* border: 1px solid #d3d3d3; */
+        user-select: none;
+    }
+
+    .ganttTooltip {
+        position: absolute;
+        background-color: black;
+        color: white;
+        font-size: small;
+        z-index: 20;
+        user-select: none;
+        margin: 3px;
+        padding: 2px 6px 2px 6px;
+        border-radius: 16px;
+        box-shadow: 10px 10px 20px grey;
+    }
+
+    .ganttDateHeaderItem {
+        position: absolute;
+        font-size: small;
+        display: flex;
+        height: 16px;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        background-color: black;
+        border-left: 1px solid white;
+        border-bottom: 1px solid white;
+        user-select: none;
+    }
+
+    .ganttCell {
+        position: absolute;
+        font-size: small;
+        display: flex;
+        flex-direction: column;
+        justify-content: top;
+        z-index: 20;
+        user-select: none;
+        height: calc(100% - 51px);
+        border-left: 1px dotted grey;
+    }
+
+    .diffClass {
+        background-color: white;
+    }
+
+    .svgFrame {
+        position: absolute;
+        z-index: 20;
+        user-select: none;
+        pointer-events: none;
+        overflow: hidden;
+    }
+
+    #mydivheader {
+        padding: 10px;
+        cursor: move;
+        z-index: 10;
+        background-color: transparent;
+        color: black;
+    }
+</style>
+
+<body onload="onLoad()">
+    <div id="divFrame">
+        <div id="divDates"></div>
+        <div id="divCells"></div>
+    </div>
+
+    <script>
+        let taskArr = [];
+
+        const DISPMode = Object.freeze({
+            Normal: 0,
+            Moving: 1,
+            Power: 2
+        });
+
+        let startDate = new Date('2023-01-01');
+        let endDate = new Date('2024-06-30');
+
+        let oneDay = 24 * 60 * 60 * 1000;
+
+        let divVals = {};
+
+        let sDate = startDate.getTime();
+
+        let eDate = endDate.getTime();
+
+        let dRange = eDate - sDate;
+
+        let tooltip = null;
+
+        let powerVal = 1;
+
+        let mode = DISPMode.Normal;
+
+        let options = {
+            year: "2-digit",
+            month: "numeric",
+            day: "numeric",
+            hour: "numeric",
+            weekday: "short",
+        };
+
+        function onLoad() {
+            divFrame.addEventListener('pointermove', dragMouseMove);
+            divFrame.addEventListener('pointerdown', dragMouseDown);
+
+            calcCells();
+        }
+
+        function doDates(dStruc) {
+            let yy = dStruc.thisDate.getYear() - 100;
+            let mm = dStruc.thisDate.getMonth() + 1;
+            let dd = dStruc.thisDate.getDate();
+
+            if ((dStruc.yPos.yy != yy) || dStruc.bLastIndex) {
+                if (dStruc.yPos.yy != -1) {
+                    dStruc.yPos.e = (dStruc.bLastIndex) ? divFrame.offsetWidth : dStruc.newLeft;
+
+                    var iDiv = document.createElement('div');
+
+                    iDiv.style.left = `${dStruc.yPos.s}px`;
+                    iDiv.className = "ganttDateHeaderItem";
+                    iDiv.style.width = (dStruc.yPos.e - dStruc.yPos.s) + "px";
+
+                    iDiv.innerText = dStruc.yPos.yy;
+                    divDates.appendChild(iDiv);
+                }
+                dStruc.yPos.s = dStruc.newLeft;
+                dStruc.yPos.yy = yy;
+            }
+
+            if ((dStruc.mPos.mm != mm) || dStruc.bLastIndex) {
+                if (dStruc.mPos.mm != -1) {
+                    dStruc.mPos.e = (dStruc.bLastIndex) ? divFrame.offsetWidth : dStruc.newLeft;
+
+                    // YAKUBU: put in code for lastindex difference needing two seperate entries.
+
+                    var iDiv = document.createElement('div');
+
+                    iDiv.style.left = `${dStruc.mPos.s}px`;
+                    iDiv.className = "ganttDateHeaderItem";
+                    iDiv.style.width = (dStruc.mPos.e - dStruc.mPos.s) + "px";
+                    iDiv.style.top = "17px";
+
+                    iDiv.innerText = dStruc.mPos.mm;
+                    divDates.appendChild(iDiv);
+                }
+                dStruc.mPos.s = dStruc.newLeft;
+                dStruc.mPos.mm = mm;
+            }
+
+            var iDiv = document.createElement('div');
+
+            iDiv.style.left = `${dStruc.newLeft}px`;
+            iDiv.className = "ganttDateHeaderItem";
+            iDiv.style.width = dStruc.divSize + "px";
+            iDiv.style.top = "34px";
+
+            iDiv.innerText = dd;
+            divDates.appendChild(iDiv);
+        }
+
+        function calcCells() {
+            let extraClass = "";
+
+            divVals.nItems = 39;
+            divVals.divSize = divFrame.offsetWidth / divVals.nItems;
+            divVals.stateArr = [0, 17, 29];
+
+            let dStruc = {};
+
+            dStruc.yPos = { yy: -1, s: 0, e: 0 };
+            dStruc.mPos = { mm: -1, s: 0, e: 0 };
+
+            let currentLength = divCells.children.length;
+
+            for (let i = 0; i < currentLength; i++) {
+                divCells.children[0].remove();
+            }
+
+            let datesLength = divDates.children.length;
+
+            for (let i = 0; i < datesLength; i++) {
+                divDates.children[0].remove();
+            }
+
+            if (mode === DISPMode.Normal) {
+                let oneDay = 24 * 60 * 60 * 1000;
+                let incDay = 14;
+                let lastDate = new Date(sDate);
+                let lDate = sDate;
+                let thisDate = new Date(eDate);
+                let bBail = false;
+
+                let nItems = dRange / (oneDay * incDay);
+
+                let divSize = divFrame.offsetWidth / nItems;
+
+                dStruc.divSize = divSize;
+
+                for (let index = 0; index < nItems; index++) {
+                    lastDate.setTime(lDate);
+
+                    let ratio = 1 - ((lDate - sDate) / dRange);
+
+                    let bTooSmall = false;
+                    let newWidth, newLeft;;
+
+                    let newDate = lDate + (incDay * oneDay);
+                    let wRatio = ((newDate - sDate) / dRange);
+
+                    let widthRatio = 1 - wRatio;
+
+                    newLeft = divSize * index;
+                    newDiff = divSize;
+
+                    lDate = newDate;
+
+                    thisDate.setTime(lDate);
+
+                    let newDiv = document.createElement('div');
+                    newDiv.className = "ganttCell" + extraClass;
+                    newDiv.style.left = `${newLeft}px`;
+                    newDiv.style.width = `${newDiff}px`;
+                    newDiv.style.top = '51px';
+
+                    dStruc.newLeft = newLeft;
+                    dStruc.thisDate = thisDate;
+
+                    dStruc.bLastIndex = (index === nItems - 1);
+
+                    doDates(dStruc);
+
+                    divCells.appendChild(newDiv);
+                }
+            }
+
+            if (mode === DISPMode.Moving) {
+                let incDay = 7;
+                let lastDate = new Date(sDate);
+                let lDate = sDate;
+                let thisDate = new Date(sDate);
+                let bBail = false;
+
+                let state = 0;
+
+                dStruc.divSize = divVals.divSize;
+
+                for (let index = 0; index < divVals.nItems; index++) {
+                    lastDate.setTime(lDate);
+
+                    let cDate = lastDate.getTime();
+
+                    let dDiff = ((cDate - sDate) / dRange) * divFrame.offsetWidth;
+
+                    let newDiv = document.createElement('div');
+                    newDiv.className = "ganttCell" + extraClass;
+
+                    let newLeft = index * divVals.divSize;
+                    newDiv.style.left = `${newLeft}px`;
+                    newDiv.style.width = `${divVals.divSize}px`;
+                    newDiv.style.top = '51px';
+
+                    dStruc.newLeft = newLeft;
+                    dStruc.thisDate = lastDate;
+
+                    dStruc.bLastIndex = (index === divVals.nItems - 1);
+
+                    doDates(dStruc);
+
+                    divCells.appendChild(newDiv);
+
+                    if (state === 1) {
+                        incDay = 14;
+                    }
+
+                    if (index === divVals.stateArr[1]) {
+                        state = 1;
+                        extraClass = " diffClass";
+                    }
+
+                    if (index > divVals.stateArr[2]) {
+                        state = 2;
+                        let newDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1);
+
+                        lDate = newDate.getTime();
+
+                        extraClass = "";
+                    }
+
+                    if (state < 2)
+                        lDate += (incDay * oneDay);
+                }
+            }
+
+            if (mode === DISPMode.Power) {
+                let oneDay = 24 * 60 * 60 * 1000;
+                let incDay = 7;
+                let lastDate = new Date(sDate);
+                let lDate = sDate;
+                let thisDate = new Date(sDate);
+                let bBail = false;
+
+                for (let index = 0; ((index < 80) && (!bBail)); index++) {
+                    lastDate.setTime(lDate);
+
+                    let ratio = 1 - ((lDate - sDate) / dRange);
+
+                    let bTooSmall = false;
+                    let newWidth, newLeft;;
+                    do {
+                        bTooSmall = false;
+                        let newDate = lDate + (incDay * oneDay);
+                        let wRatio = ((newDate - sDate) / dRange);
+
+                        if (wRatio <= 1) {
+                            let widthRatio = 1 - wRatio;
+
+                            const checkWidth = (0.5 - Math.pow(widthRatio, 1 / powerVal)) + 0.5;
+
+                            const checkDate = (0.5 - Math.pow(ratio, 1 / powerVal)) + 0.5;
+
+                            newLeft = checkDate * divFrame.offsetWidth;
+                            newDiff = (checkWidth - checkDate) * divFrame.offsetWidth;
+
+                            if (newDiff < 24) {
+                                extraClass = (extraClass.length === 0) ? " diffClass" : "";
+                                bTooSmall = true;
+                                incDay *= 2;
+                            }
+                            else {
+                                lDate = newDate;
+                                bTooSmall = false;
+                            }
+                        }
+                        else {
+                            bBail = true;
+                        }
+
+                    } while (bTooSmall)
+
+                    // if (!bBail) {
+                    thisDate.setTime(lDate);
+
+                    let newDiv = document.createElement('div');
+                    newDiv.className = "ganttCell" + extraClass;
+                    newDiv.style.left = `${newLeft}px`;
+                    newDiv.style.width = `${newDiff}px`;
+                    newDiv.style.top = '51px';
+
+                    dStruc.newLeft = newLeft;
+                    dStruc.divSize = newDiff;
+                    dStruc.thisDate = thisDate;
+
+                    dStruc.bLastIndex = (bBail);
+
+                    doDates(dStruc);
+
+                    const month = `${thisDate.getYear() - 100}</span><span>${thisDate.getMonth() + 1}</span><span>${thisDate.getDate()}</span>`;
+                    newDiv.innerHTML = month;
+
+                    divCells.appendChild(newDiv);
+                    // }
+                }
+            }
+        }
+
+        window.addEventListener("wheel", function (e) {
+            e.wheel = e.deltaY ? -e.deltaY : e.wheelDelta / 40;
+
+            powerVal += 0.01 * ((e.wheel > 0) ? 1 : -1);
+
+            calcCells();
+
+            console.log(e.wheel);
+            // custom code
+        });
+
+        function dragMouseDown(e) {
+            if (e.ctrlKey) {
+                sDate += oneDay;
+                eDate += oneDay;
+
+                startDate.setTime(sDate);
+                endDate.setTime(eDate);
+            }
+            else {
+                if (++mode > DISPMode.Power) mode = DISPMode.Normal;
+            }
+
+            calcCells();
+        }
+
+        function powerTooltip(xPos) {
+            const ratio = 1 - (xPos / divFrame.offsetWidth);
+
+            const logScaledOffset = (0.5 - Math.pow(ratio, powerVal)) + 0.5;
+
+            const timeOffset = logScaledOffset * dRange;
+
+            const dueDate = new Date(sDate + timeOffset);
+
+            tooltip.innerText = dueDate.toLocaleString(undefined, options);
+        }
+
+        function staggerTooltip(xPos) {
+            const ratio = (divVals.nItems * xPos / divFrame.offsetWidth);
+
+            let newDays = ratio * 7 * oneDay;
+
+            // const logScaledOffset = (0.5 - Math.pow(ratio, powerVal)) + 0.5;
+
+            // const timeOffset = logScaledOffset * dRange;
+
+            const dueDate = new Date(sDate + newDays);
+
+            tooltip.innerText = (ratio < divVals.stateArr[1] + 1) ? dueDate.toLocaleString(undefined, options) : ratio;
+        }
+
+        function dragMouseMove(e) {
+            if (tooltip === null) {
+                tooltip = document.createElement('div');
+                tooltip.className = "ganttTooltip";
+
+                divFrame.appendChild(tooltip);
+            }
+
+            let yPos = e.clientY + 10;
+            let xPos = e.clientX;
+
+            let xMax = Math.log10(divFrame.offsetWidth);
+
+            let logarithmicBase = 2;
+
+            tooltip.style.top = `${yPos}px`;
+            tooltip.style.left = `${xPos}px`;
+            tooltip.style.visibility = "visible";
+
+            switch (mode) {
+                case DISPMode.Normal:
+                    let posPer = (e.clientX / (divFrame.offsetWidth)) * dRange;
+
+                    const dueDate = new Date(sDate + posPer);
+
+                    tooltip.innerText = dueDate.toLocaleString(undefined, options);
+                    break;
+                case DISPMode.Moving:
+                    staggerTooltip(xPos);
+                    break;
+                case DISPMode.Power:
+                    powerTooltip(xPos);
+                    break;
+            }
+        }
+
+    </script>
+
+</body>
+
+</html>

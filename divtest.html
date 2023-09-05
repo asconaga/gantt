@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<style>
+    :root {
+        --elemHeight: 20px;
+    }
+
+    body {
+        margin: 0px;
+    }
+
+    #divFrame {
+        overflow: hidden;
+        position: relative;
+        width: 1200px;
+        height: 800px;
+        background-color: #f1f1f1;
+        text-align: center;
+        /* border: 1px solid #d3d3d3; */
+        user-select: none;
+    }
+
+    #divItems {
+        position: absolute;
+    }
+
+    .divTaskItem {
+        position: absolute;
+        user-select: none;
+        pointer-events: none;
+        outline: 1px solid black;
+        outline-offset: -1px;
+        height: var(--elemHeight);
+    }
+</style>
+
+<body onload="onLoad()" onunload="onUnload()">
+    <div id="divFrame">
+        <div id="divItems"></div>
+    </div>
+
+    <script>
+        const elemWidth = 100;
+        let totLeft = 0;
+
+        let curRange = null;
+
+        let bDown = false;
+
+        let taskArr = [];
+
+        let delta = { x: 0, y: 0 };
+
+        let xPos = 0;
+
+        let md = null;
+
+        var rootStyles = getComputedStyle(document.documentElement);
+        const elemHeight = parseInt(rootStyles.getPropertyValue('--elemHeight'));
+
+        function onLoad() {
+            const elemWidth = 30;
+            for (let index = 0; index < 100; index++) {
+                let newObj = { id: index, row: index, s: index * elemWidth, e: (index + 1) * elemWidth };
+
+                taskArr.push(newObj);
+            }
+
+            // taskArr.push({ id: 0, s: 100, e: 300, iDiv: null });
+            // taskArr.push({ id: 1, s: 400, e: 600, iDiv: null });
+            // taskArr.push({ id: 2, s: 800, e: 2900, iDiv: null });
+            // taskArr.push({ id: 3, s: -800, e: 0, iDiv: null });
+
+            console.log(divFrame.offsetLeft, divFrame.offsetWidth);
+
+            doTasks();
+
+            divFrame.addEventListener('pointerup', dragMouseUp);
+            divFrame.addEventListener('pointermove', dragMouseMove);
+            divFrame.addEventListener('pointerdown', dragMouseDown);
+        }
+
+        function onUnload() {
+            divFrame.removeEventListener('pointerup', dragMouseUp);
+            divFrame.removeEventListener('pointermove', dragMouseMove);
+            divFrame.removeEventListener('pointerdown', dragMouseDown);
+        }
+
+        function dragMouseDown(e) {
+            bDown = true;
+
+            md = {
+                e,
+                offsetLeft: divFrame.offsetLeft,
+                offsetTop: divFrame.offsetTop
+            };
+        }
+
+        function dragMouseUp(e) {
+            bDown = false;
+
+            xPos += delta.x;
+
+            md = null;
+
+            delta = { x: 0, y: 0 };
+        }
+
+        function dragMouseMove(e) {
+            if (bDown) {
+                if (md != null) {
+                    delta = {
+                        x: e.clientX - md.e.clientX,
+                        y: e.clientY - md.e.clientY
+                    };
+                }
+
+                console.log(delta.x + xPos, totLeft);
+
+                doTasks();
+
+                const half = divFrame.offsetWidth / 2;
+
+                let dist = 10 * (e.clientX - half) / half;
+
+                const sign = (dist > 0) ? 1 : -1;
+
+                dist = Math.ceil(Math.abs(dist)) * sign;
+
+                totLeft = delta.x + xPos;
+
+                divItems.style.left = `${totLeft}px`;
+
+                // console.log(totLeft, divItems.offsetLeft, divItems.offsetLeft + divFrame.offsetWidth);
+            }
+        }
+
+        function doTasks() {
+            let lastPos = 0;
+
+            let screenLeft = divItems.offsetLeft;
+
+            let screenRight = screenLeft + divFrame.offsetWidth;
+
+
+
+            let screenTop = divItems.offsetTop;
+
+            let screenBottom = screenTop + divFrame.offsetHeight;
+
+
+            // create task
+
+            taskArr.forEach(function (taskObj, i) {
+                const lCheck = (taskObj.s + totLeft) < divFrame.offsetWidth;
+                const rCheck = (taskObj.e + screenLeft > 0);
+
+                let bActive = (lCheck && rCheck);
+
+                if (bActive) {
+                    if (taskObj.iDiv === undefined) {
+                        var iDiv = document.createElement('div');
+
+                        iDiv.style.left = `${taskObj.s}px`;
+                        iDiv.className = "divTaskItem";
+
+                        let newWidth = taskObj.e - taskObj.s;
+                        iDiv.style.width = newWidth + "px";
+
+                        iDiv.innerText = taskObj.id;
+
+                        iDiv.style.top = `${taskObj.row * elemHeight}px`;
+                        taskObj.iDiv = iDiv;
+                        // iDiv.elemAttr = { id: 1, row: index };
+                        divItems.appendChild(iDiv);
+                    }
+                } else {
+                    if (taskObj.iDiv != undefined) {
+                        taskObj.iDiv.remove();
+                        taskObj.iDiv = undefined;
+                    }
+                }
+            });
+        }
+
+
+
+        function displayTasks() {
+            let lastPos = 0;
+
+            // YAKUBU make work with variable elemWidth
+            let leftDiv = Math.floor(totLeft / elemWidth);
+
+            let frameSize = Math.ceil(divFrame.offsetWidth / elemWidth);
+
+            let frameWidth = leftDiv + frameSize;
+
+            if (curRange === null) {
+                curRange = { s: 0, e: 0 };
+            }
+
+            let taskS = 0;
+            let taskE = taskArr.length;
+
+            let newDivs = frameWidth - curRange.e;
+
+            let newLeft = ((curRange.s - 1) * elemWidth) + lastPos;
+
+            let newRight = (curRange.e * elemWidth) + lastPos;
+
+            if (newDivs > 0) {
+            } else if (newDivs < 0) {
+            }
+
+            // if (curRange.s + newDivs < taskS) {
+            //     newDivs = 0;
+            // }
+
+            let lostDivs = leftDiv - curRange.s;
+
+            console.log(lostDivs, newDivs, newLeft, newRight);
+            // console.log(frameSize, curRange, newLeft, newRight);
+
+            // YAKUBU deal with multiple deletes
+            if (lostDivs > 0) {
+                divItems.children[0].remove();
+            } else if (lostDivs < 0) {
+                let end = divItems.children.length;
+                divItems.children[end - 1].remove();
+            }
+
+            // YAKUBU only iterate through taskArr (so no negatives)
+
+            if (newDivs > 0) {
+                for (let index = 0; index < newDivs; index++) {
+
+                    let task = taskArr[index];
+
+                    var iDiv = document.createElement('div');
+
+                    iDiv.style.left = `${(curRange.e * elemWidth) + lastPos}px`;
+                    iDiv.className = "divTaskItem";
+
+                    let newWidth = elemWidth;
+                    iDiv.style.width = newWidth + "px";
+
+                    lastPos += newWidth;
+
+                    iDiv.innerText = curRange.e + index;
+                    // iDiv.elemAttr = { id: 1, row: index };
+                    divItems.appendChild(iDiv);
+                }
+            } else if (newDivs < 0) {
+                newDivs = -newDivs;
+                for (let index = 0; index < newDivs; index++) {
+                    let task = taskArr[index];
+
+                    var iDiv = document.createElement('div');
+
+                    iDiv.style.left = `${((curRange.s - 1) * elemWidth) + lastPos}px`;
+                    iDiv.className = "divTaskItem";
+
+                    let newWidth = elemWidth;
+                    iDiv.style.width = newWidth + "px";
+
+                    lastPos += newWidth;
+
+                    iDiv.innerText = (curRange.s - 1) + index;
+                    // iDiv.elemAttr = { id: 1, row: index };
+
+                    divItems.insertBefore(iDiv, divItems.children[0]);
+                }
+            }
+
+
+            curRange.s = leftDiv;
+            curRange.e = frameWidth;
+        }
+
+    </script>
+
+</body>
+
+</html>
